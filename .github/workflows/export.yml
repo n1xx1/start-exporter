@@ -1,8 +1,12 @@
-name: Minecraft client export
+name: Export
 
 on:
   workflow_dispatch:
     inputs:
+      release:
+        description: Star Technology release tag, or latest
+        type: string
+        default: latest
       publish_release:
         description: Publish successful export as a permanent GitHub Release asset
         type: boolean
@@ -13,41 +17,42 @@ permissions:
 
 jobs:
   export:
+    name: Export
     runs-on: ubuntu-24.04
 
     timeout-minutes: 60
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
 
-      - name: Restore exporter mod JAR
+      - name: Restore StarT Exporter
         id: exporter-cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: exporter-mod/build/libs/
           key: exporter-jar-v1-${{ runner.os }}-java21-${{ hashFiles('exporter-mod/src/**', 'exporter-mod/*.gradle*', 'exporter-mod/gradle.properties', 'exporter-mod/gradle/**', 'exporter-mod/gradlew*') }}
 
-      - name: Set up Java 21
+      - name: Setup Java
         uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: "21"
-          cache: gradle
+          cache: ${{ steps.exporter-cache.outputs.cache-hit != 'true' && 'gradle' || '' }}
           cache-dependency-path: |
             exporter-mod/*.gradle*
             exporter-mod/gradle.properties
             exporter-mod/**/gradle-wrapper.properties
 
-      - name: Build exporter mod
+      - name: Build StarT Exporter
         if: steps.exporter-cache.outputs.cache-hit != 'true'
         working-directory: exporter-mod
         run: bash gradlew --no-daemon build
 
-      - name: Cache exporter mod JAR
+      - name: Cache StarT Exporter
         if: steps.exporter-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: exporter-mod/build/libs/
           key: ${{ steps.exporter-cache.outputs.cache-primary-key }}
@@ -59,24 +64,25 @@ jobs:
           cache: true
           require-lockfile: true
 
-      - name: Check preparation scripts
+      - name: Typecheck
         run: pnpm typecheck
 
-      - name: Install display and software rendering
+      - name: Setup display
         run: |
           sudo apt-get update
           sudo apt-get install -y xvfb xauth x11-xserver-utils libgl1-mesa-dri libglx-mesa0 libasound2t64
 
-      - name: Prepare latest StarT client release
+      - name: Prepare pack
         env:
+          PACK_RELEASE: ${{ inputs.release }}
           CURSEFORGE_API_KEY: ${{ secrets.CURSEFORGE_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
         run: pnpm prepare-pack
 
-      - name: Download pinned empty world
+      - name: Prepare world
         run: pnpm prepare-world
 
-      - name: Install exporter mod
+      - name: Install StarT Exporter
         shell: bash
         run: |
           mapfile -t jars < <(find exporter-mod/build/libs -maxdepth 1 -type f -name 'start-exporter-*.jar' ! -name '*-sources.jar' ! -name '*-javadoc.jar' ! -name '*-dev.jar')
@@ -86,13 +92,13 @@ jobs:
           fi
           cp "${jars[0]}" run/mods/start-exporter.jar
 
-      - name: Start client and wait for it to quit
+      - name: Run client
         env:
           LIBGL_ALWAYS_SOFTWARE: "true"
           JAVA_TOOL_OPTIONS: -Dstartexport.enabled=true -Dstartexport.quit=true -Dstartexport.output=export
         run: bash scripts/run_client.sh
 
-      - name: Validate and package completed export
+      - name: Package export
         run: pnpm package-export
 
       - name: Upload export
@@ -117,6 +123,7 @@ jobs:
           retention-days: 7
 
   release:
+    name: Publish
     needs: export
     if: inputs.publish_release
 
@@ -131,7 +138,7 @@ jobs:
           name: export-${{ github.run_id }}-${{ github.run_attempt }}
           path: dist
 
-      - name: Publish versioned assets
+      - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}

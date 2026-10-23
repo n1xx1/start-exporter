@@ -13,7 +13,7 @@ import * as R from "remeda";
 
 const config = {
   repository: "StarT-Dev-Team/Star-Technology",
-  release: "latest",
+  release: process.env.PACK_RELEASE?.trim() || "latest",
   clientAssetPattern: "^(?!.*server)Star[ ._-]*Technology[ ._-].+\\.zip$",
 };
 
