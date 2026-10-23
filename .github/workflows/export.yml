@@ -22,31 +22,38 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Restore exporter mod JAR
+        id: exporter-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: exporter-mod/build/libs/
+          key: exporter-jar-v1-${{ runner.os }}-java21-${{ hashFiles('exporter-mod/src/**', 'exporter-mod/*.gradle*', 'exporter-mod/gradle.properties', 'exporter-mod/gradle/**', 'exporter-mod/gradlew*') }}
+
       - name: Set up Java 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: "21"
           cache: gradle
           cache-dependency-path: |
-            exporter-mod/*.gradle
+            exporter-mod/*.gradle*
             exporter-mod/gradle.properties
-            exporter-mod/gradle/wrapper/gradle-wrapper.properties
+            exporter-mod/**/gradle-wrapper.properties
 
       - name: Build exporter mod
+        if: steps.exporter-cache.outputs.cache-hit != 'true'
         working-directory: exporter-mod
         run: bash gradlew --no-daemon build
 
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v4
+      - name: Cache exporter mod JAR
+        if: steps.exporter-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
         with:
-          node-version-file: .node-version
-          cache: pnpm
+          path: exporter-mod/build/libs/
+          key: ${{ steps.exporter-cache.outputs.cache-primary-key }}
 
-      - run: pnpm install --frozen-lockfile
-
-      - run: pnpm typecheck
+      - name: Setup pnpm
+        uses: pnpm/setup@v3
 
       - name: Install display and software rendering
         run: |

@@ -183,7 +183,7 @@ export function runInParallel<T>(
 ) {
   return Promise.all(
     splitParallel(data, count).map(async (entries) => {
-      for (const d of data) {
+      for (const d of entries) {
         await callback(d);
       }
     })
