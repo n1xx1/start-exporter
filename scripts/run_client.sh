@@ -49,7 +49,9 @@ fi
 
 forge_id="$mc-forge-$forge"
 if [[ ! -f "$HOME/.minecraft/versions/$forge_id/$forge_id.json" ]]; then
-  java -jar headlessmc.jar --command forge "$mc" --uid "$forge"
+  timeout --signal=TERM --kill-after=30s 10m \
+    "${FORGE_JAVA:?Set FORGE_JAVA to a Java 17 executable}" \
+    -jar headlessmc.jar --command forge "$mc" --uid "$forge"
 fi
 
 profile="$HOME/.minecraft/versions/$forge_id/$forge_id.json"

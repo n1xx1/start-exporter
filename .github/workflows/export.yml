@@ -37,6 +37,13 @@ jobs:
           path: exporter-mod/build/libs/
           key: exporter-jar-v1-${{ runner.os }}-java21-${{ hashFiles('exporter-mod/src/**', 'exporter-mod/*.gradle*', 'exporter-mod/gradle.properties', 'exporter-mod/gradle/**', 'exporter-mod/gradlew*') }}
 
+      - name: Setup installer Java
+        id: installer-java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "17"
+
       - name: Setup Java
         uses: actions/setup-java@v6
         with:
@@ -97,6 +104,7 @@ jobs:
 
       - name: Run client
         env:
+          FORGE_JAVA: ${{ steps.installer-java.outputs.path }}/bin/java
           LIBGL_ALWAYS_SOFTWARE: "true"
           JAVA_TOOL_OPTIONS: -Dstartexport.enabled=true -Dstartexport.quit=true -Dstartexport.output=export
         run: bash scripts/run_client.sh
