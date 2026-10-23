@@ -111,6 +111,8 @@ interface ReleaseAsset {
 interface GitHubRelease {
   id: number;
   tag_name: string;
+  name: string | null;
+  html_url: string;
   published_at: string;
   draft: boolean;
   prerelease: boolean;
@@ -155,6 +157,8 @@ export async function getGithubRelease(source: PackSource) {
   return {
     repository: source.repository,
     tag: release.tag_name,
+    name: release.name || release.tag_name,
+    url: release.html_url,
     release_id: release.id,
     published_at: release.published_at,
     asset: asset.name,

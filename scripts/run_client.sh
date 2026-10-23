@@ -27,8 +27,8 @@ curl --fail --location --retry 3 -o headlessmc.jar \
   https://github.com/headlesshq/headlessmc/releases/download/2.10.0/headlessmc-launcher-2.10.0.jar
 echo '52bd5006f478377b3893011d458562977d38c65ead6d2b31089beb4d614f13cd  headlessmc.jar' | sha256sum --check
 
-mc=$(node --input-type=module -e 'import fs from "node:fs"; console.log(JSON.parse(fs.readFileSync(".cache/provenance.json", "utf8")).minecraft)')
-forge=$(node --input-type=module -e 'import fs from "node:fs"; console.log(JSON.parse(fs.readFileSync(".cache/provenance.json", "utf8")).forge)')
+mc=$(jq -er '.minecraft' .cache/provenance.json)
+forge=$(jq -er '.forge' .cache/provenance.json)
 
 if [[ "$mc" != 1.20.1 ]]; then
   echo "Pinned HMC-Specifics supports Minecraft 1.20.1; update it before launching $mc." >&2
@@ -52,7 +52,9 @@ if [[ ! -f "$HOME/.minecraft/versions/$forge_id/$forge_id.json" ]]; then
   java -jar headlessmc.jar --command forge "$mc" --uid "$forge"
 fi
 
-node scripts/configure-client-runtime.mjs "$HOME/.minecraft/versions/$forge_id/$forge_id.json"
+profile="$HOME/.minecraft/versions/$forge_id/$forge_id.json"
+jq '.javaVersion = {component: "java-runtime-delta", majorVersion: 21}' "$profile" > "$profile.tmp"
+mv "$profile.tmp" "$profile"
 
 console_dir=/tmp/start-export-data-console
 mkdir "$console_dir" # Refuse concurrent launchers sharing the same command input.

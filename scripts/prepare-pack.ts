@@ -139,6 +139,7 @@ pauseOnLostFocus:false
     JSON.stringify(
       {
         manifest: manifest,
+        release: { tag: release.tag, name: release.name, url: release.url },
         ...versions,
         source_commit: process.env.GITHUB_SHA,
         run_id: process.env.GITHUB_RUN_ID,

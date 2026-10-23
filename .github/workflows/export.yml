@@ -18,6 +18,9 @@ permissions:
 jobs:
   export:
     name: Export
+    outputs:
+      provenance: ${{ steps.package.outputs.provenance }}
+      diagnostics-url: ${{ steps.diagnostics.outputs.artifact-url }}
     runs-on: ubuntu-24.04
 
     timeout-minutes: 60
@@ -99,7 +102,10 @@ jobs:
         run: bash scripts/run_client.sh
 
       - name: Package export
-        run: pnpm package-export
+        id: package
+        run: |
+          pnpm package-export
+          echo "provenance=$(jq -c '.' .cache/provenance.json)" >> "$GITHUB_OUTPUT"
 
       - name: Upload export
         uses: actions/upload-artifact@v7
@@ -110,6 +116,7 @@ jobs:
           retention-days: 30
 
       - name: Upload diagnostics
+        id: diagnostics
         if: always()
         uses: actions/upload-artifact@v7
         with:
@@ -128,6 +135,9 @@ jobs:
     if: inputs.publish_release
 
     runs-on: ubuntu-24.04
+    concurrency:
+      group: publish-${{ fromJSON(needs.export.outputs.provenance).release.tag }}
+      cancel-in-progress: false
 
     permissions:
       contents: write
@@ -143,8 +153,21 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           SOURCE_SHA: ${{ github.sha }}
+          PROVENANCE: ${{ needs.export.outputs.provenance }}
+          DEBUG_LOGS_URL: ${{ needs.export.outputs.diagnostics-url }}
         run: |
-          gh release create "export-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
-            dist/export.zip dist/SHA256SUMS \
-            --target "$SOURCE_SHA" --title "Minecraft export ${GITHUB_RUN_ID}.${GITHUB_RUN_ATTEMPT}" \
-            --notes "Client export from workflow run ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}. See provenance.json inside export.zip for the pinned modpack version."
+          tag=$(jq -r '.release.tag' <<< "$PROVENANCE")
+          title="$(jq -r '.release.name' <<< "$PROVENANCE") Dump"
+          notes="$RUNNER_TEMP/release-notes.md"
+          test -n "$DEBUG_LOGS_URL"
+          jq -r --arg logs "$DEBUG_LOGS_URL" \
+            '"Data dump for [\(.release.name)](\(.release.url)).\n\nMinecraft: `\(.minecraft)` · Forge: `\(.forge)`\n\n[Debug logs](\($logs))"' \
+            <<< "$PROVENANCE" > "$notes"
+
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" dist/export.zip dist/SHA256SUMS --clobber
+            gh release edit "$tag" --title "$title" --notes-file "$notes"
+          else
+            gh release create "$tag" dist/export.zip dist/SHA256SUMS \
+              --target "$SOURCE_SHA" --title "$title" --notes-file "$notes"
+          fi
