@@ -1,0 +1,12 @@
+/.cache/
+/run/
+/HeadlessMC/
+/dist/
+/headlessmc*.jar
+/node_modules/
+/.env
+/exporter-mod/.gradle/
+/exporter-mod/.idea/
+/exporter-mod/build/
+/exporter-mod/run/
+/exporter-mod/bin/

@@ -1,0 +1,8 @@
+* text=auto
+*.sh text eol=lf
+*.ts text eol=lf
+*.yml text eol=lf
+*.dat binary
+*.mca binary
+gradlew text eol=lf
+*.jar binary

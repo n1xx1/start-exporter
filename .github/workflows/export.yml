@@ -1,0 +1,129 @@
+name: Minecraft client export
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish_release:
+        description: Publish successful export as a permanent GitHub Release asset
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+          cache-dependency-path: |
+            exporter-mod/*.gradle
+            exporter-mod/gradle.properties
+            exporter-mod/gradle/wrapper/gradle-wrapper.properties
+
+      - name: Build exporter mod
+        working-directory: exporter-mod
+        run: bash gradlew --no-daemon build
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm typecheck
+
+      - name: Install display and software rendering
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb xauth x11-xserver-utils libgl1-mesa-dri libglx-mesa0 libasound2t64
+
+      - name: Prepare latest StarT client release
+        env:
+          CURSEFORGE_API_KEY: ${{ secrets.CURSEFORGE_API_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: pnpm prepare-pack
+
+      - name: Download pinned empty world
+        run: pnpm prepare-world
+
+      - name: Install exporter mod
+        shell: bash
+        run: |
+          mapfile -t jars < <(find exporter-mod/build/libs -maxdepth 1 -type f -name 'start-exporter-*.jar' ! -name '*-sources.jar' ! -name '*-javadoc.jar' ! -name '*-dev.jar')
+          if (( ${#jars[@]} != 1 )); then
+            printf 'Expected one exporter mod JAR, found %s\n' "${#jars[@]}" >&2
+            exit 1
+          fi
+          cp "${jars[0]}" run/mods/start-exporter.jar
+
+      - name: Start client and wait for it to quit
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "true"
+          JAVA_TOOL_OPTIONS: -Dstartexport.enabled=true -Dstartexport.quit=true -Dstartexport.output=export
+        run: bash scripts/run_client.sh
+
+      - name: Validate and package completed export
+        run: pnpm package-export
+
+      - name: Upload export
+        uses: actions/upload-artifact@v7
+        with:
+          name: export-${{ github.run_id }}-${{ github.run_attempt }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            .cache/provenance.json
+            .cache/client-console.log
+            run/logs/
+            run/crash-reports/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  release:
+    needs: export
+    if: inputs.publish_release
+
+    runs-on: ubuntu-24.04
+
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: export-${{ github.run_id }}-${{ github.run_attempt }}
+          path: dist
+
+      - name: Publish versioned assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          gh release create "export-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            dist/export.zip dist/SHA256SUMS \
+            --target "$SOURCE_SHA" --title "Minecraft export ${GITHUB_RUN_ID}.${GITHUB_RUN_ATTEMPT}" \
+            --notes "Client export from workflow run ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}. See provenance.json inside export.zip for the pinned modpack version."

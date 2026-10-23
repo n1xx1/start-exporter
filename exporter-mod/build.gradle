@@ -1,0 +1,73 @@
+plugins {
+    id 'java'
+    id 'net.neoforged.moddev.legacyforge' version '2.0.148'
+}
+
+group = 'dev.startexport'
+version = '0.1.0'
+base { archivesName = 'start-exporter' }
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+// Keep LWJGL Java bindings and native libraries aligned for Java 21 debugging.
+configurations.configureEach {
+    resolutionStrategy.eachDependency {
+        if (requested.group == 'org.lwjgl') {
+            useVersion '3.3.3'
+            because 'LWJGL 3.3.1 is incompatible with newer JNI versions under debugging'
+        }
+    }
+}
+
+legacyForge {
+    version = '1.20.1-47.4.20'
+    validateAccessTransformers = true
+    runs {
+        client {
+            client()
+            programArguments.addAll('--mixin.config', 'startexporter.mixins.json')
+            jvmArgument '-XX:+AllowEnhancedClassRedefinition'
+            systemProperty 'startexport.enabled', 'true'
+            systemProperty 'startexport.quit', 'false'
+        }
+    }
+    mods { startexporter { sourceSet sourceSets.main } }
+}
+
+// Enhanced HotSwap requires JetBrains Runtime; the Gradle daemon can use any supported JDK.
+tasks.named('runClient') {
+    javaLauncher = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(21)
+        vendor = JvmVendorSpec.matching('JetBrains')
+    }
+}
+
+repositories {
+    maven { url = 'https://repo.sleeping.town/' }
+    maven { url = 'https://maven.ftb.dev/releases/' }
+    maven { url = 'https://maven.architectury.dev/' }
+    maven {
+        url = 'https://maven.latvian.dev/releases/'
+        content { includeGroup 'dev.latvian.mods' }
+    }
+    maven {
+        url = 'https://cursemaven.com/'
+        content { includeGroup 'curse.maven' }
+    }
+}
+
+dependencies {
+    modImplementation 'dev.emi:emi-forge:1.1.24+1.20.1'
+    modImplementation 'dev.ftb.mods:ftb-teams-forge:2001.3.2'
+    modImplementation 'dev.ftb.mods:ftb-quests-forge:2001.4.22'
+    modImplementation 'dev.ftb.mods:ftb-library-forge:2001.2.13'
+    modImplementation 'dev.architectury:architectury-forge:9.2.14'
+    modImplementation 'dev.latvian.mods:kubejs-forge:2001.6.5-build.26'
+    modImplementation 'dev.latvian.mods:rhino-forge:2001.2.3-build.10'
+    modRuntimeOnly 'curse.maven:gregtech-modern-start-fork-1483344:8990245'
+}
+
+tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }
+
+tasks.named('jar', Jar) {
+    manifest.attributes('MixinConfigs': 'startexporter.mixins.json')
+}

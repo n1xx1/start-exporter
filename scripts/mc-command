@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+set -euo pipefail
+export LC_ALL=C
+
+if (( $# != 1 )) || [[ -z "$1" || "$1" == *$'\n'* || "$1" == *$'\r'* ]]; then
+  echo 'Usage: mc-command '\''msg "Hello"'\'' (one command per invocation)' >&2
+  exit 2
+fi
+
+if (( ${#1} > 4000 )); then
+  echo 'Command must be at most 4000 characters.' >&2
+  exit 2
+fi
+
+console_dir=/tmp/start-export-data-console
+if [[ ! -p "$console_dir/input" ]]; then
+  echo 'Minecraft command input is unavailable. Start scripts/run_client.sh first.' >&2
+  exit 1
+fi
+
+# Serialize writers and bound the wait if the game/launcher has exited.
+flock -w 5 "$console_dir/write.lock" \
+  timeout 5s bash -c 'printf "%s\n" "$1" > "$2"' _ "$1" "$console_dir/input"

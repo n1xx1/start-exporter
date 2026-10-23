@@ -1,0 +1,21 @@
+{
+  "name": "start-export-data",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "prepare-pack": "tsx scripts/prepare-pack.ts",
+    "package-export": "tsx scripts/package-export.ts",
+    "prepare-world": "tsx scripts/prepare-world.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "packageManager": "pnpm@10.11.0",
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "@xmcl/curseforge": "^2.2.2",
+    "@xmcl/modrinth": "^2.5.3",
+    "adm-zip": "^0.6.1",
+    "remeda": "^2.53.0",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}

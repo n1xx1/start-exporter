@@ -1,0 +1,15 @@
+FROM node:24.1.0-bookworm AS node
+
+FROM eclipse-temurin:21-jdk-noble
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates curl util-linux xvfb xauth x11-xserver-utils libgl1-mesa-dri \
+    libglx-mesa0 libasound2t64 \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=node /usr/local/bin/node /opt/fnm/node-versions/v24.1.0/installation/node
+ENV PATH="/opt/fnm/node-versions/v24.1.0/installation:${PATH}" \
+    CI=true \
+    LIBGL_ALWAYS_SOFTWARE=true \
+    HOME=/workspace/.cache/linux-home
+WORKDIR /workspace
+COPY --chmod=755 scripts/mc-command /usr/local/bin/mc-command
+CMD ["bash", "scripts/run_client.sh"]
