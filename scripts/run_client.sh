@@ -12,7 +12,8 @@ fi
 
 mkdir -p HeadlessMC .cache
 cat > HeadlessMC/config.properties <<EOF
-hmc.java.versions=$JAVA_HOME
+hmc.auto.download.java=false
+hmc.jvmargs=-Xms1G -Xmx6G
 hmc.gamedir=$PWD/run
 hmc.gameargs=--quickPlaySingleplayer empty-world
 hmc.mcdir=$HOME/.minecraft
@@ -51,6 +52,8 @@ if [[ ! -f "$HOME/.minecraft/versions/$forge_id/$forge_id.json" ]]; then
   java -jar headlessmc.jar --command forge "$mc" --uid "$forge"
 fi
 
+node scripts/configure-client-runtime.mjs "$HOME/.minecraft/versions/$forge_id/$forge_id.json"
+
 console_dir=/tmp/start-export-data-console
 mkdir "$console_dir" # Refuse concurrent launchers sharing the same command input.
 trap 'exec 9>&-; rm -f "$console_dir/input" "$console_dir/write.lock"; rmdir "$console_dir"' EXIT
@@ -62,4 +65,4 @@ exec 9<>"$console_dir/input"
 xvfb-run -a -s '-screen 0 1280x720x24 +extension GLX +render -noreset' \
   java -Dhmc.check.xvfb=true -jar headlessmc.jar --command launch \
   "^${mc//./\.}-forge-${forge//./\.}$" -regex \
-  --jvm '-Xms1G -Xmx6G' <&9 9>&- 2>&1 | tee .cache/client-console.log
+  <&9 9>&- 2>&1 | tee .cache/client-console.log
