@@ -1,0 +1,2 @@
+# Skip Forge's early loading window, which fails font initialization on Eta.
+earlyWindowControl = false
