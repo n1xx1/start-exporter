@@ -53,6 +53,7 @@ export async function prepare(): Promise<void> {
 
   const zip = new AdmZip(archive);
   const manifest = JSON.parse(zip.readAsText("manifest.json")) as Manifest;
+  const versions = runtimeVersions(manifest);
 
   const overridesPrefix = `${manifest.overrides}/`;
   const overridesToCopy = zip
@@ -138,6 +139,7 @@ pauseOnLostFocus:false
     JSON.stringify(
       {
         manifest: manifest,
+        ...versions,
         source_commit: process.env.GITHUB_SHA,
         run_id: process.env.GITHUB_RUN_ID,
         run_attempt: process.env.GITHUB_RUN_ATTEMPT,
@@ -158,6 +160,22 @@ interface Manifest {
   overrides: string;
   version: string;
   files: { projectID: number; fileID: number }[];
+}
+
+export function runtimeVersions(manifest: Manifest) {
+  const minecraft = manifest.minecraft.version;
+  const loaders = manifest.minecraft.modLoaders;
+  const loader =
+    loaders.find((loader) => loader.primary) ??
+    (loaders.length === 1 ? loaders[0] : undefined);
+  if (
+    !/^\d+\.\d+(?:\.\d+)?$/.test(minecraft) ||
+    !loader ||
+    !/^forge-\d+\.\d+\.\d+$/.test(loader.id)
+  ) {
+    throw new Error("Expected a Minecraft version and primary Forge loader in the pack manifest");
+  }
+  return { minecraft, forge: loader.id.slice("forge-".length) };
 }
 
 export async function getModrinthDownloadUrl(sha1: string) {
@@ -192,23 +210,6 @@ export function safeRelative(name: string): string {
   }
 
   return normalized;
-}
-
-export function runtimeVersions(manifest: Manifest): {
-  minecraft: string;
-  forge: string;
-} {
-  const loaders = manifest.minecraft.modLoaders;
-  const loader = loaders.find((loader) => loader.primary) ?? loaders.at(0);
-
-  if (!loader || !manifest.minecraft.version) {
-    throw new Error("Missing loader");
-  }
-
-  return {
-    minecraft: manifest.minecraft.version,
-    forge: loader.id.slice("forge-".length),
-  };
 }
 
 if (isMain(import.meta.url)) {
