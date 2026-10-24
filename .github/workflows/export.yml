@@ -107,7 +107,7 @@ jobs:
           FORGE_JAVA: ${{ steps.installer-java.outputs.path }}/bin/java
           LIBGL_ALWAYS_SOFTWARE: "true"
           JAVA_TOOL_OPTIONS: -Dstartexport.enabled=true -Dstartexport.quit=true -Dstartexport.output=export
-        run: bash scripts/run_client.sh
+        run: bash scripts/diagnose-client.sh
 
       - name: Package export
         id: package
@@ -132,6 +132,7 @@ jobs:
           path: |
             .cache/provenance.json
             .cache/client-console.log
+            .cache/thread-dumps/
             run/logs/
             run/crash-reports/
           if-no-files-found: ignore
