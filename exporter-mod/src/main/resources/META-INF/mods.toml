@@ -12,14 +12,14 @@ displayTest="IGNORE_ALL_VERSION"
 [[dependencies.startexporter]]
 modId="kubejs"
 mandatory=true
-versionRange="[2001.6.5-build.26,2002)"
+versionRange="[2001.6.5-build.16,2002)"
 ordering="AFTER"
 side="BOTH"
 
 [[dependencies.startexporter]]
 modId="forge"
 mandatory=true
-versionRange="[47.4.20,48)"
+versionRange="[47.4.0,48)"
 ordering="NONE"
 side="CLIENT"
 
@@ -33,13 +33,13 @@ side="CLIENT"
 [[dependencies.startexporter]]
 modId="emi"
 mandatory=true
-versionRange="[1.1.24,)"
+versionRange="[1.1.22,)"
 ordering="AFTER"
 side="CLIENT"
 
 [[dependencies.startexporter]]
 modId="ftbquests"
 mandatory=true
-versionRange="[2001.4.22,)"
+versionRange="[2001.4.16,)"
 ordering="AFTER"
 side="CLIENT"

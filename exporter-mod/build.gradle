@@ -19,7 +19,7 @@ configurations.configureEach {
 }
 
 legacyForge {
-    version = '1.20.1-47.4.20'
+    version = '1.20.1-47.4.0'
     validateAccessTransformers = true
     runs {
         client {
@@ -56,12 +56,12 @@ repositories {
 }
 
 dependencies {
-    modImplementation 'dev.emi:emi-forge:1.1.24+1.20.1'
+    modImplementation 'dev.emi:emi-forge:1.1.22+1.20.1'
     modImplementation 'dev.ftb.mods:ftb-teams-forge:2001.3.2'
-    modImplementation 'dev.ftb.mods:ftb-quests-forge:2001.4.22'
+    modImplementation 'dev.ftb.mods:ftb-quests-forge:2001.4.16'
     modImplementation 'dev.ftb.mods:ftb-library-forge:2001.2.13'
     modImplementation 'dev.architectury:architectury-forge:9.2.14'
-    modImplementation 'dev.latvian.mods:kubejs-forge:2001.6.5-build.26'
+    modImplementation 'dev.latvian.mods:kubejs-forge:2001.6.5-build.16'
     modImplementation 'dev.latvian.mods:rhino-forge:2001.2.3-build.10'
     modRuntimeOnly 'curse.maven:gregtech-modern-start-fork-1483344:8990245'
 }
