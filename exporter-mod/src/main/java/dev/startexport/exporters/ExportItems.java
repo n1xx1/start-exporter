@@ -7,6 +7,7 @@ import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.client.renderer.texture.SpriteContents;
 import net.minecraft.client.renderer.texture.TextureAtlas;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraft.world.item.ItemDisplayContext;
@@ -223,44 +224,56 @@ public final class ExportItems {
     private static final RandomSource RANDOM_SOURCE = RandomSource.create();
 
     public static @Nullable AnimationData getAnimationDataForItem(ItemStack itemStack) {
-        TextureAtlasSprite animatedSprite = null;
-        var model = Minecraft.getInstance().getItemRenderer().getModel(itemStack, null, null, 0);
-        if (!model.isCustomRenderer()) {
-            for (var pass : model.getRenderPasses(itemStack, true)) {
-                RANDOM_SOURCE.setSeed(42);
-                @SuppressWarnings("deprecation")
-                var quads = pass.getQuads(null, null, RANDOM_SOURCE);
-                for (var quad : quads) {
-                    var sprite = quad.getSprite();
-                    if (sprite == animatedSprite) {
-                        continue;
+        try {
+            TextureAtlasSprite animatedSprite = null;
+            var model = Minecraft.getInstance().getItemRenderer().getModel(itemStack, null, null, 0);
+            if (!model.isCustomRenderer()) {
+                for (var pass : model.getRenderPasses(itemStack, true)) {
+                    RANDOM_SOURCE.setSeed(42);
+                    @SuppressWarnings("deprecation")
+                    var quads = pass.getQuads(null, null, RANDOM_SOURCE);
+                    for (var quad : quads) {
+                        var sprite = quad.getSprite();
+                        if (sprite == animatedSprite) {
+                            continue;
+                        }
+                        @SuppressWarnings("resource")
+                        var frames = sprite.contents().getUniqueFrames().count();
+                        if (frames <= 1) {
+                            continue;
+                        }
+                        if (animatedSprite != null) {
+                            // can't have more than 1 animatedSprite, fallback to no animation
+                            return null;
+                        }
+                        animatedSprite = sprite;
                     }
-                    @SuppressWarnings("resource")
-                    var frames = sprite.contents().getUniqueFrames().count();
-                    if (frames <= 1) {
-                        continue;
-                    }
-                    if (animatedSprite != null) {
-                        // can't have more than 1 animatedSprite, fallback to no animation
-                        return null;
-                    }
-                    animatedSprite = sprite;
                 }
             }
-        }
-        if (animatedSprite == null) {
+            if (animatedSprite == null) {
+                return null;
+            }
+            return AnimationData.get(animatedSprite);
+        } catch (Exception exception) {
+            StarTExporter.LOG.warn("Could not detect animation for item {}; exporting a static image",
+                BuiltInRegistries.ITEM.getKey(itemStack.getItem()), exception);
             return null;
         }
-        return AnimationData.get(animatedSprite);
     }
 
     public static @Nullable AnimationData getAnimationDataForFluid(FluidStack fluidStack) {
-        var mc = Minecraft.getInstance();
-        var ext = IClientFluidTypeExtensions.of(fluidStack.getFluid());
-        var texture = ext.getStillTexture(fluidStack);
-        var atlas = mc.getModelManager().getAtlas(InventoryMenu.BLOCK_ATLAS);
-        var sprite = atlas.getSprite(texture);
-        return AnimationData.get(sprite);
+        try {
+            var mc = Minecraft.getInstance();
+            var ext = IClientFluidTypeExtensions.of(fluidStack.getFluid());
+            var texture = ext.getStillTexture(fluidStack);
+            var atlas = mc.getModelManager().getAtlas(InventoryMenu.BLOCK_ATLAS);
+            var sprite = atlas.getSprite(texture);
+            return AnimationData.get(sprite);
+        } catch (Exception exception) {
+            StarTExporter.LOG.warn("Could not detect animation for fluid {}; exporting a static image",
+                BuiltInRegistries.FLUID.getKey(fluidStack.getFluid()), exception);
+            return null;
+        }
     }
 
     public static class AnimationData {
