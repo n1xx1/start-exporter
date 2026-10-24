@@ -23,7 +23,7 @@ public final class ExecutionUtils {
         executorService.submit(() -> {
             try {
                 future.complete(callable.call());
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 future.completeExceptionally(e);
             }
         });
@@ -35,7 +35,7 @@ public final class ExecutionUtils {
         executorService.schedule(() -> {
             try {
                 future.complete(callable.call());
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 future.completeExceptionally(e);
             }
         }, delay, unit);

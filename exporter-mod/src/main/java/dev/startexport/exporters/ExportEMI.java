@@ -1,5 +1,7 @@
 package dev.startexport.exporters;
 
+import dev.startexport.utils.FutureUtils;
+
 import net.minecraft.MethodsReturnNonnullByDefault;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
@@ -47,7 +49,7 @@ public class ExportEMI {
     }
 
     public static CompletableFuture<Void> export() {
-        return CompletableFuture.allOf(
+        return FutureUtils.allOf(
             ExecutionUtils.submit(() -> {
                 var manager = EmiApi.getRecipeManager();
                 return manager.getCategories().stream().map(ExportEMI::exportRecipeCategory).toArray(CompletableFuture[]::new);

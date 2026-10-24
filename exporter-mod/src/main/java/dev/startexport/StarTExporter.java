@@ -11,6 +11,7 @@ import dev.startexport.exporters.ExportFTBQuests;
 import dev.startexport.exporters.ExportItems;
 import dev.startexport.utils.FileUtils;
 import dev.startexport.utils.ExecutionUtils;
+import dev.startexport.utils.FutureUtils;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.RegisterClientCommandsEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -50,7 +51,7 @@ public final class StarTExporter {
         exportRunning = true;
         exportDirectory = FileUtils.resolveGameDirPath(StarTExporterConfig.OUTPUT);
 
-        CompletableFuture.allOf(
+        FutureUtils.allOf(
                 ExportEMI.isReady(),
                 ExportFTBQuests.isReady(),
                 ExportItems.isReady()
@@ -59,7 +60,7 @@ public final class StarTExporter {
                 LOG.info("Export ready to start.");
                 return null;
             })
-            .thenCompose((_void) -> CompletableFuture.allOf(
+            .thenCompose((_void) -> FutureUtils.allOf(
                 ExportEMI.export(),
                 ExportFTBQuests.export(),
                 ExportItems.export()
