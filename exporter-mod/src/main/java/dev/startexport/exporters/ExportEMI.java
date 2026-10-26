@@ -66,7 +66,10 @@ public class ExportEMI {
             return manager.getCategories().stream().map(ExportEMI::exportRecipeCategory).toArray(CompletableFuture[]::new);
         })
             .thenCompose(CompletableFuture::allOf)
-            .thenCompose((_void) -> ExecutionUtils.wait(ExportEMI::isRecipeExportingDone));
+            .thenCompose((_void) -> {
+                isRecipeGatheringDone.set(true);
+                return ExecutionUtils.wait(ExportEMI::isRecipeExportingDone);
+            });
     }
 
     private static CompletableFuture<Void> exportRecipeCategory(EmiRecipeCategory category) {
@@ -191,11 +194,12 @@ public class ExportEMI {
                 StarTExporter.LOG.info("Loaded {} item/fluid entries", count);
             }
 
-            isIndexingDone.set(true);
-
             FileUtils.saveExportedFile("all_items.json", JsonUtils.toBytes(items));
             return null;
-        }).thenCompose((_void) -> ExecutionUtils.wait(ExportEMI::isItemExportingDone));
+        }).thenCompose((_void) -> {
+            isIndexingDone.set(true);
+            return ExecutionUtils.wait(ExportEMI::isItemExportingDone);
+        });
     }
 
     public static boolean isIndexingDone() {
