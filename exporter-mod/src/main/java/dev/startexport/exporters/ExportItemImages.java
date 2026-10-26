@@ -19,7 +19,8 @@ import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.systems.RenderSystem;
 import dev.emi.emi.EmiRenderHelper;
 import dev.startexport.StarTExporter;
-import dev.startexport.utils.AsyncFileSaveWorker;
+import dev.startexport.StarTExporterConfig;
+import dev.startexport.utils.AsyncImageSaveWorker;
 import dev.startexport.utils.ExecutionUtils;
 import io.netty.util.collection.IntObjectHashMap;
 import io.netty.util.collection.IntObjectMap;
@@ -46,7 +47,7 @@ public final class ExportItemImages {
     private static Matrix4f screenScaleMatrix;
     private static final Matrix4f pixelScaleMatrix = new Matrix4f().scaling(1.f / 16.f, 1.f / 16.f, 1);
     private static final Matrix4f flipYMatrix = new Matrix4f().scaling(1, -1, 1);
-    private static AsyncFileSaveWorker fileSaveWorker;
+    private static AsyncImageSaveWorker fileSaveWorker;
     private static TextureTarget renderTarget;
     private static IntObjectMap<NativeImage> imageBySize;
     private static NativeImage renderImage;
@@ -65,7 +66,7 @@ public final class ExportItemImages {
         var renderedItems = new MutableInt(0);
 
         return CompletableFuture.runAsync(() -> {
-                fileSaveWorker = new AsyncFileSaveWorker(StarTExporter.INSTANCE.exportDirectory, 4, 32);
+                fileSaveWorker = new AsyncImageSaveWorker(StarTExporter.INSTANCE.exportDirectory, 4, 512);
                 renderTarget = new TextureTarget(EXPORTED_IMAGE_SIZE, EXPORTED_IMAGE_SIZE, true, false);
                 imageBySize = new IntObjectHashMap<>();
                 renderImage = new NativeImage(EXPORTED_IMAGE_SIZE, EXPORTED_IMAGE_SIZE, false);
@@ -94,7 +95,7 @@ public final class ExportItemImages {
                     graphics.pose().mulPoseMatrix(flipYMatrix);
                     graphics.pose().scale(16, 16, 16);
 
-                    var deadline = System.nanoTime() + 1_000_000L;
+                    var deadline = System.nanoTime() + StarTExporterConfig.RENDER_BATCH_NANO;
                     ExportEMI.ItemToExport itemToExport;
 
                     while (System.nanoTime() < deadline && (itemToExport = ExportEMI.itemsExportQueue.poll()) != null) {
@@ -112,7 +113,7 @@ public final class ExportItemImages {
 
                 graphics.pose().pushPose();
                 try {
-                    var deadline = System.nanoTime() + 1_000_000L;
+                    var deadline = System.nanoTime() + StarTExporterConfig.RENDER_BATCH_NANO;
                     ExportEMI.FluidToExport fluidToExport;
 
                     while (System.nanoTime() < deadline && (fluidToExport = ExportEMI.fluidsExportQueue.poll()) != null) {
@@ -151,7 +152,6 @@ public final class ExportItemImages {
     }
 
     private static void saveItem(GuiGraphics graphics, String target, ItemStack itemStack, @Nullable AnimationData animationData) throws IOException {
-        byte[] bytes;
         if (animationData != null) {
             var exportImage = getSizedNativeImage(animationData.frames.size());
 
@@ -160,13 +160,12 @@ public final class ExportItemImages {
                 renderItem(graphics, itemStack);
                 renderImage.copyRect(exportImage, 0, 0, 0, index * EXPORTED_IMAGE_SIZE, 32, 32, false, false);
             }
-            bytes = exportImage.asByteArray();
-        } else {
-            renderItem(graphics, itemStack);
-            bytes = renderImage.asByteArray();
+            fileSaveWorker.saveFile(target, exportImage);
+            return;
         }
 
-        fileSaveWorker.saveFile(target, bytes);
+        renderItem(graphics, itemStack);
+        fileSaveWorker.saveFile(target, renderImage);
     }
 
     private static void renderItem(GuiGraphics graphics, ItemStack itemStack) {
@@ -195,7 +194,6 @@ public final class ExportItemImages {
     }
 
     private static void saveFluid(GuiGraphics graphics, String target, FluidStack fluidStack, @Nullable AnimationData animationData) throws IOException {
-        byte[] bytes;
         if (animationData != null) {
             var exportImage = getSizedNativeImage(animationData.frames.size());
             for (int index = 0; index < animationData.frames.size(); index++) {
@@ -203,13 +201,13 @@ public final class ExportItemImages {
                 renderFluid(graphics, fluidStack);
                 renderImage.copyRect(exportImage, 0, 0, 0, index * EXPORTED_IMAGE_SIZE, 32, 32, false, false);
             }
-            bytes = exportImage.asByteArray();
-        } else {
-            renderFluid(graphics, fluidStack);
-            bytes = renderImage.asByteArray();
+
+            fileSaveWorker.saveFile(target, exportImage);
+            return;
         }
 
-        fileSaveWorker.saveFile(target, bytes);
+        renderFluid(graphics, fluidStack);
+        fileSaveWorker.saveFile(target, renderImage);
     }
 
     private static void renderFluid(GuiGraphics graphics, FluidStack fluidStack) {

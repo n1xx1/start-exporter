@@ -9,7 +9,8 @@ import dev.emi.emi.api.recipe.EmiRecipe;
 import dev.emi.emi.runtime.EmiDrawContext;
 import dev.emi.emi.screen.WidgetGroup;
 import dev.startexport.StarTExporter;
-import dev.startexport.utils.AsyncFileSaveWorker;
+import dev.startexport.StarTExporterConfig;
+import dev.startexport.utils.AsyncImageSaveWorker;
 import dev.startexport.utils.ExecutionUtils;
 
 import net.minecraft.client.Minecraft;
@@ -29,7 +30,7 @@ import java.util.concurrent.CompletableFuture;
 public final class ExportRecipeImages {
     private static final int SCALE = 2;
 
-    private static AsyncFileSaveWorker fileSaveWorker;
+    private static AsyncImageSaveWorker fileSaveWorker;
     private static IntObjectMap<IntObjectMap<TextureTarget>> renderTargetByWH;
     private static IntObjectMap<IntObjectMap<NativeImage>> renderImageByWH;
 
@@ -50,10 +51,9 @@ public final class ExportRecipeImages {
         var renderedRecipes = new MutableInt(0);
 
         return CompletableFuture.runAsync(() -> {
-            fileSaveWorker = new AsyncFileSaveWorker(StarTExporter.INSTANCE.exportDirectory, 4, 32);
+            fileSaveWorker = new AsyncImageSaveWorker(StarTExporter.INSTANCE.exportDirectory, 4, 512);
             renderTargetByWH = new IntObjectHashMap<>();
             renderImageByWH = new IntObjectHashMap<>();
-
         }, mc).thenCompose(_void -> ExecutionUtils.whileOnGuiRender(event -> {
             var graphics = event.getGuiGraphics();
 
@@ -69,7 +69,7 @@ public final class ExportRecipeImages {
                 RenderSystem.applyModelViewMatrix();
                 graphics.pose().setIdentity();
 
-                var deadline = System.nanoTime() + 1_000_000L;
+                var deadline = System.nanoTime() + StarTExporterConfig.RENDER_BATCH_NANO;
                 ExportEMI.RecipeToExport recipeToExport;
 
                 while (System.nanoTime() < deadline && (recipeToExport = ExportEMI.recipeExportQueue.poll()) != null) {
@@ -112,10 +112,8 @@ public final class ExportRecipeImages {
     }
 
     private static void saveRecipe(GuiGraphics graphics, String target, EmiRecipe recipe) throws IOException {
-        @SuppressWarnings("resource")
         var renderImage = renderRecipeToFramebuffer(graphics, recipe);
-        var bytes = renderImage.asByteArray();
-        fileSaveWorker.saveFile(target, bytes);
+        fileSaveWorker.saveFile(target, renderImage);
     }
 
     public static void renderRecipe(GuiGraphics graphics, EmiRecipe recipe) {

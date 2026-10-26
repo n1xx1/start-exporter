@@ -106,7 +106,7 @@ jobs:
         env:
           FORGE_JAVA: ${{ steps.installer-java.outputs.path }}/bin/java
           LIBGL_ALWAYS_SOFTWARE: "true"
-          JAVA_TOOL_OPTIONS: -Dstartexport.enabled=true -Dstartexport.quit=true -Dstartexport.output=export
+          JAVA_TOOL_OPTIONS: -Dstartexport.enabled=true -Dstartexport.quit=true -Dstartexport.output=export -Dstartexport.renderbatchdurationms=4000
         run: bash scripts/diagnose-client.sh
 
       - name: Package export
