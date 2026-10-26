@@ -1,6 +1,7 @@
 package dev.startexport.utils;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.resources.ResourceLocation;
 
 import dev.startexport.StarTExporter;
 
@@ -9,6 +10,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 public final class FileUtils {
+
+    public static String resourceLocationToPath(ResourceLocation rl) {
+        return rl.getNamespace() + "/" + rl.getPath().replace('/', '~');
+    }
 
     public static Path resolveGameDirPath(String relative) {
         var mc = Minecraft.getInstance();

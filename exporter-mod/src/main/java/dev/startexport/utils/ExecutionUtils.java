@@ -79,7 +79,7 @@ public final class ExecutionUtils {
         boolean call(RenderGuiEvent.Post event);
     }
 
-    public static CompletableFuture<Void> whileOnRender(OnRender callback) {
+    public static CompletableFuture<Void> whileOnGuiRender(OnRender callback) {
         var future = new CompletableFuture<Void>();
         var listener = (Consumer<RenderGuiEvent.Post>) event -> {
             if (future.isDone()) return;

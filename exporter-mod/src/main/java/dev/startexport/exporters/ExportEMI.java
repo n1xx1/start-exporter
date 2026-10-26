@@ -1,5 +1,6 @@
 package dev.startexport.exporters;
 
+import dev.emi.emi.api.recipe.EmiRecipe;
 import dev.startexport.utils.FutureUtils;
 
 import net.minecraft.MethodsReturnNonnullByDefault;
@@ -38,10 +39,14 @@ public class ExportEMI {
     public static final AtomicBoolean isIndexingDone = new AtomicBoolean(false);
     public static final LinkedBlockingQueue<ItemToExport> itemsExportQueue = new LinkedBlockingQueue<>();
     public static final LinkedBlockingQueue<FluidToExport> fluidsExportQueue = new LinkedBlockingQueue<>();
+
+    public static final AtomicBoolean isRecipeGatheringDone = new AtomicBoolean(false);
+    public static final LinkedBlockingQueue<RecipeToExport> recipeExportQueue = new LinkedBlockingQueue<>();
+
     public static final CompletableFuture<Void> recipesLoadedFuture = new CompletableFuture<>();
     public static HashMap<ResourceLocation, JsonObject> loadedRecipes = null;
 
-    public static CompletableFuture<Void> isReady() {
+    public static CompletableFuture<Void> waitReady() {
         return recipesLoadedFuture.thenComposeAsync(
             (_void) -> ExecutionUtils.wait(EmiReloadManager::isLoaded),
             ExecutionUtils.executor()
@@ -50,24 +55,36 @@ public class ExportEMI {
 
     public static CompletableFuture<Void> export() {
         return FutureUtils.allOf(
-            ExecutionUtils.submit(() -> {
-                var manager = EmiApi.getRecipeManager();
-                return manager.getCategories().stream().map(ExportEMI::exportRecipeCategory).toArray(CompletableFuture[]::new);
-            }).thenCompose(CompletableFuture::allOf),
+            exportRecipes(),
             exportIndex()
         );
+    }
+
+    private static CompletableFuture<Void> exportRecipes() {
+        return ExecutionUtils.submit(() -> {
+            var manager = EmiApi.getRecipeManager();
+            return manager.getCategories().stream().map(ExportEMI::exportRecipeCategory).toArray(CompletableFuture[]::new);
+        })
+            .thenCompose(CompletableFuture::allOf)
+            .thenCompose((_void) -> ExecutionUtils.wait(ExportEMI::isRecipeExportingDone));
     }
 
     private static CompletableFuture<Void> exportRecipeCategory(EmiRecipeCategory category) {
         var manager = EmiApi.getRecipeManager();
         return ExecutionUtils.submit(() -> {
             var recipes = new JsonObject();
+            // var recipeCategoryPath = FileUtils.resourceLocationToPath(category.getId());
             for (var recipe : manager.getRecipes(category)) {
                 var result = new JsonObject();
                 var id = recipe.getId();
                 if (id == null) continue;
 
-                result.addProperty("id", recipe.getId().toString());
+                result.addProperty("id", id.toString());
+
+                var recipeIdPath = FileUtils.resourceLocationToPath(id);
+                var recipePath = "recipe-images/" + recipeIdPath + ".png";
+                recipeExportQueue.put(new RecipeToExport(recipePath, recipe));
+                result.addProperty("image", recipePath);
 
                 var raw = loadedRecipes.get(recipe.getId());
                 if (raw != null) {
@@ -93,10 +110,19 @@ public class ExportEMI {
                 recipes.add(id.toString(), result);
             }
 
-            FileUtils.saveExportedFile("recipes/" + category.getId().getNamespace() + "/" + category.getId().getPath() + ".json", JsonUtils.toBytes(recipes));
+            var exportPath = FileUtils.resourceLocationToPath(category.getId());
+            FileUtils.saveExportedFile("recipes/" + exportPath + ".json", JsonUtils.toBytes(recipes));
             StarTExporter.LOG.info("Collected {} recipes for {}", recipes.size(), category.getId());
             return null;
         });
+    }
+
+    public static boolean isRecipeGatheringDone() {
+        return isRecipeGatheringDone.get();
+    }
+
+    public static boolean isRecipeExportingDone() {
+        return isRecipeGatheringDone() && recipeExportQueue.isEmpty();
     }
 
     private static boolean shouldSkipStack(EmiStack stack) {
@@ -120,7 +146,7 @@ public class ExportEMI {
                 entry.addProperty("fluid", isFluid);
 
                 var suffix = stack.hasNbt() ? "_" + JsonUtils.hashNbt(stack.getNbt()) : "";
-                var imageBasePath = stack.getId().getNamespace() + "/" + stack.getId().getPath() + suffix + ".png";
+                var imageBasePath = FileUtils.resourceLocationToPath(stack.getId()) + suffix + ".png";
 
                 if (isFluid) {
                     var fluidStack = new FluidStack((Fluid) stack.getKey(), 1000);
@@ -128,7 +154,7 @@ public class ExportEMI {
                         fluidStack.setTag(stack.getNbt().copy());
                     }
 
-                    var animationData = ExportItems.getAnimationDataForFluid(fluidStack);
+                    var animationData = ExportItemImages.getAnimationDataForFluid(fluidStack);
                     if (animationData != null) {
                         entry.addProperty("animationFrames", animationData.frames.size());
                     }
@@ -144,7 +170,7 @@ public class ExportEMI {
 
                     entry.add("description", JsonUtils.fromComponent(itemStack.getItem().getDescription()));
 
-                    var animationData = ExportItems.getAnimationDataForItem(itemStack);
+                    var animationData = ExportItemImages.getAnimationDataForItem(itemStack);
                     if (animationData != null) {
                         entry.addProperty("animationFrames", animationData.frames.size());
                     }
@@ -169,14 +195,14 @@ public class ExportEMI {
 
             FileUtils.saveExportedFile("all_items.json", JsonUtils.toBytes(items));
             return null;
-        }).thenCompose((_void) -> ExecutionUtils.wait(ExportEMI::isExportingDone));
+        }).thenCompose((_void) -> ExecutionUtils.wait(ExportEMI::isItemExportingDone));
     }
 
     public static boolean isIndexingDone() {
         return isIndexingDone.get();
     }
 
-    public static boolean isExportingDone() {
+    public static boolean isItemExportingDone() {
         return isIndexingDone() && itemsExportQueue.isEmpty() && fluidsExportQueue.isEmpty();
     }
 
@@ -237,9 +263,12 @@ public class ExportEMI {
         return result;
     }
 
-    public record ItemToExport(String path, ItemStack stack, @Nullable ExportItems.AnimationData animationData) {
+    public record ItemToExport(String path, ItemStack stack, @Nullable ExportItemImages.AnimationData animationData) {
     }
 
-    public record FluidToExport(String path, FluidStack stack, @Nullable ExportItems.AnimationData animationData) {
+    public record FluidToExport(String path, FluidStack stack, @Nullable ExportItemImages.AnimationData animationData) {
+    }
+
+    public record RecipeToExport(String path, EmiRecipe recipe) {
     }
 }

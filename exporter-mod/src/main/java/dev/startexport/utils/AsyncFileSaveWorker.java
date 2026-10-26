@@ -53,9 +53,8 @@ public final class AsyncFileSaveWorker implements AutoCloseable {
 
     public CompletableFuture<Void> join() {
         workers.shutdown();
-
         var completion = new CompletableFuture<Void>();
-        new Thread(() -> {
+        ExecutionUtils.submit(() -> {
             try {
                 if (!workers.awaitTermination(10, TimeUnit.MINUTES)) {
                     throw new IOException("File workers did not finish");
@@ -66,8 +65,8 @@ public final class AsyncFileSaveWorker implements AutoCloseable {
                 workers.shutdownNow();
                 completion.completeExceptionally(error);
             }
-        }, "startexport-finish").start();
-
+            return null;
+        });
         return completion;
     }
 

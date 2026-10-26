@@ -14,11 +14,10 @@ import dev.startexport.utils.JsonUtils;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public final class ExportFTBQuests {
 
-    public static CompletableFuture<Void> isReady() {
+    public static CompletableFuture<Void> waitReady() {
         return ExecutionUtils.wait(ExportFTBQuests::isQuestbookLoaded);
     }
 

@@ -26,7 +26,7 @@ legacyForge {
             client()
             programArguments.addAll('--mixin.config', 'startexporter.mixins.json')
             jvmArgument '-XX:+AllowEnhancedClassRedefinition'
-            systemProperty 'startexport.enabled', 'true'
+            // systemProperty 'startexport.enabled', 'true'
             systemProperty 'startexport.quit', 'false'
         }
     }
