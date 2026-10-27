@@ -4,13 +4,14 @@ import { join, relative, sep } from "node:path";
 import { checksum, isMain } from "./common.js";
 
 async function listFiles(directory: string): Promise<string[]> {
-  const files: string[] = [];
+  let files: string[] = [];
   for (const name of await readdir(directory)) {
     const path = join(directory, name);
     const info = await lstat(path);
 
     if (info.isDirectory()) {
-      files.push(...(await listFiles(path)));
+      const contents = await listFiles(path);
+      files = files.concat(contents);
       continue;
     }
     if (info.isFile()) {
