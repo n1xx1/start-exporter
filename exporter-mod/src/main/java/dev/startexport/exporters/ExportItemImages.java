@@ -76,7 +76,14 @@ public final class ExportItemImages {
                 var height = mc.getWindow().getHeight() / guiScale;
                 screenScaleMatrix = new Matrix4f().scaling(width, height, 1);
             }, mc).thenCompose((_void) -> ExecutionUtils.whileOnGuiRender((event) -> {
+                if (StarTExporterConfig.DISABLE_IMAGE_RENDERING) {
+                    ExportEMI.itemsExportQueue.clear();
+                    ExportEMI.fluidsExportQueue.clear();
+                    return ExportEMI.isItemExportingDone() && ExportEMI.isFluidExportingDone();
+                }
+
                 var graphics = event.getGuiGraphics();
+                var allowedRenderTime = StarTExporterConfig.getAllowedRenderTimeNano();
 
                 graphics.flush();
                 graphics.pose().pushPose();
@@ -95,7 +102,7 @@ public final class ExportItemImages {
                     graphics.pose().mulPoseMatrix(flipYMatrix);
                     graphics.pose().scale(16, 16, 16);
 
-                    var deadline = System.nanoTime() + StarTExporterConfig.RENDER_BATCH_NANO;
+                    var deadline = System.nanoTime() + allowedRenderTime;
                     ExportEMI.ItemToExport itemToExport;
 
                     while (System.nanoTime() < deadline && (itemToExport = ExportEMI.itemsExportQueue.poll()) != null) {
@@ -113,7 +120,7 @@ public final class ExportItemImages {
 
                 graphics.pose().pushPose();
                 try {
-                    var deadline = System.nanoTime() + StarTExporterConfig.RENDER_BATCH_NANO;
+                    var deadline = System.nanoTime() + allowedRenderTime;
                     ExportEMI.FluidToExport fluidToExport;
 
                     while (System.nanoTime() < deadline && (fluidToExport = ExportEMI.fluidsExportQueue.poll()) != null) {
@@ -132,7 +139,7 @@ public final class ExportItemImages {
 
                 mc.getMainRenderTarget().bindWrite(true);
 
-                return ExportEMI.isItemExportingDone();
+                return ExportEMI.isItemExportingDone() && ExportEMI.isFluidExportingDone();
             })).whenCompleteAsync((_void, exception) -> {
                 var count = renderedItems.getValue();
                 if (count % 500 != 0) {

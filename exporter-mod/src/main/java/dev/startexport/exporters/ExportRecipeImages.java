@@ -21,6 +21,7 @@ import io.netty.util.collection.IntObjectMap;
 import org.apache.commons.lang3.mutable.MutableInt;
 import org.joml.Matrix4f;
 
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
 
@@ -28,7 +29,8 @@ import java.util.concurrent.CompletableFuture;
  * Captures the recipe card, following EMI's screenshot button, before item rendering starts.
  */
 public final class ExportRecipeImages {
-    private static final int SCALE = 2;
+    public static final int RECIPE_BORDER = 4;
+    public static final int RECIPE_SCALE = 2;
 
     private static AsyncImageSaveWorker fileSaveWorker;
     private static IntObjectMap<IntObjectMap<TextureTarget>> renderTargetByWH;
@@ -55,6 +57,11 @@ public final class ExportRecipeImages {
             renderTargetByWH = new IntObjectHashMap<>();
             renderImageByWH = new IntObjectHashMap<>();
         }, mc).thenCompose(_void -> ExecutionUtils.whileOnGuiRender(event -> {
+            if (StarTExporterConfig.DISABLE_IMAGE_RENDERING) {
+                ExportEMI.recipeExportQueue.clear();
+                return ExportEMI.isRecipeExportingDone();
+            }
+
             var graphics = event.getGuiGraphics();
 
             graphics.flush();
@@ -69,11 +76,11 @@ public final class ExportRecipeImages {
                 RenderSystem.applyModelViewMatrix();
                 graphics.pose().setIdentity();
 
-                var deadline = System.nanoTime() + StarTExporterConfig.RENDER_BATCH_NANO;
+                var deadline = System.nanoTime() + StarTExporterConfig.getAllowedRenderTimeNano();
                 ExportEMI.RecipeToExport recipeToExport;
 
                 while (System.nanoTime() < deadline && (recipeToExport = ExportEMI.recipeExportQueue.poll()) != null) {
-                    saveRecipe(graphics, recipeToExport.path(), recipeToExport.recipe());
+                    saveRecipe(graphics, recipeToExport.path(), recipeToExport.recipe(), recipeToExport.emiWidgetGroup());
                     var count = renderedRecipes.incrementAndGet();
                     if (count % 500 == 0) {
                         StarTExporter.LOG.info("Rendered {}/{} recipes", count, count + ExportEMI.recipeExportQueue.size());
@@ -111,21 +118,23 @@ public final class ExportRecipeImages {
         return renderImageByWH.computeIfAbsent(width, (_width) -> new IntObjectHashMap<>()).computeIfAbsent(height, (_height) -> new NativeImage(width, height, false));
     }
 
-    private static void saveRecipe(GuiGraphics graphics, String target, EmiRecipe recipe) throws IOException {
-        var renderImage = renderRecipeToFramebuffer(graphics, recipe);
+    private static void saveRecipe(GuiGraphics graphics, String target, EmiRecipe recipe, WidgetGroup widget) throws IOException {
+        var renderImage = renderRecipeToFramebuffer(graphics, recipe, widget);
         fileSaveWorker.saveFile(target, renderImage);
     }
 
-    public static void renderRecipe(GuiGraphics graphics, EmiRecipe recipe) {
-        var border = 4;
-        var widgets = new WidgetGroup(null, 0, 0, recipe.getDisplayWidth(), recipe.getDisplayHeight());
-        recipe.addWidgets(widgets);
+    public static void renderRecipe(GuiGraphics graphics, EmiRecipe recipe, @Nullable WidgetGroup widgetGroup) {
+        if (widgetGroup == null) {
+            widgetGroup = new WidgetGroup(null, 0, 0, recipe.getDisplayWidth(), recipe.getDisplayHeight());
+            recipe.addWidgets(widgetGroup);
+        }
+
         EmiRenderHelper.renderRecipeBackground(recipe, EmiDrawContext.wrap(graphics), 0, 0);
 
         try {
             graphics.pose().pushPose();
-            graphics.pose().translate(border, border, 0);
-            for (var widget : widgets.widgets) {
+            graphics.pose().translate(RECIPE_BORDER, RECIPE_BORDER, 0);
+            for (var widget : widgetGroup.widgets) {
                 widget.render(graphics, -1000, -1000, 0);
             }
         } finally {
@@ -135,12 +144,12 @@ public final class ExportRecipeImages {
         graphics.flush();
     }
 
-    private static NativeImage renderRecipeToFramebuffer(GuiGraphics graphics, EmiRecipe recipe) {
-        var width = recipe.getDisplayWidth() + 8;
-        var height = recipe.getDisplayHeight() + 8;
+    private static NativeImage renderRecipeToFramebuffer(GuiGraphics graphics, EmiRecipe recipe, WidgetGroup widget) {
+        var width = recipe.getDisplayWidth() + RECIPE_BORDER * 2;
+        var height = recipe.getDisplayHeight() + RECIPE_BORDER * 2;
 
-        var renderTarget = getRenderTarget(width * SCALE, height * SCALE);
-        var renderImage = getRenderImage(width * SCALE, height * SCALE);
+        var renderTarget = getRenderTarget(width * RECIPE_SCALE, height * RECIPE_SCALE);
+        var renderImage = getRenderImage(width * RECIPE_SCALE, height * RECIPE_SCALE);
 
         renderTarget.setClearColor(0, 0, 0, 0);
         renderTarget.clear(false);
@@ -152,7 +161,7 @@ public final class ExportRecipeImages {
         );
 
         try {
-            renderRecipe(graphics, recipe);
+            renderRecipe(graphics, recipe, widget);
         } catch (Throwable ex) {
             StarTExporter.LOG.warn("Could not render recipe {}", recipe, ex);
         } finally {

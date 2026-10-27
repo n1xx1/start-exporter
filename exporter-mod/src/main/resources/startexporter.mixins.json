@@ -3,7 +3,8 @@
   "minVersion": "0.8",
   "package": "dev.startexport.mixin",
   "compatibilityLevel": "JAVA_17",
-  "mixins": ["RecipesEventJSMixin"],
+  "refmap": "startexporter.refmap.json",
+  "mixins": [],
   "injectors": {
     "defaultRequire": 1
   }

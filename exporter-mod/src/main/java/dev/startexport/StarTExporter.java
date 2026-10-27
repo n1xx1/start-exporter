@@ -136,7 +136,7 @@ public final class StarTExporter {
 
                         var shouldStop = new boolean[]{false};
                         ExecutionUtils.whileOnGuiRender(e -> {
-                            ExportRecipeImages.renderRecipe(e.getGuiGraphics(), recipe);
+                            ExportRecipeImages.renderRecipe(e.getGuiGraphics(), recipe, null);
                             return shouldStop[0];
                         });
 

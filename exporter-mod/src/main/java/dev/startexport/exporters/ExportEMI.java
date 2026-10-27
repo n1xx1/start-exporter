@@ -1,12 +1,17 @@
 package dev.startexport.exporters;
 
 import dev.emi.emi.api.recipe.EmiRecipe;
+import dev.emi.emi.api.widget.SlotWidget;
+import dev.emi.emi.screen.WidgetGroup;
+import dev.startexport.recipe.*;
 import dev.startexport.utils.FutureUtils;
 
 import net.minecraft.MethodsReturnNonnullByDefault;
+import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
+import net.minecraft.world.item.crafting.Recipe;
 import net.minecraft.world.level.material.Fluid;
 
 import com.google.gson.JsonArray;
@@ -24,13 +29,16 @@ import dev.startexport.utils.FileUtils;
 import dev.startexport.utils.JsonUtils;
 import dev.startexport.utils.ExecutionUtils;
 import net.minecraftforge.fluids.FluidStack;
+import net.minecraftforge.fml.ModList;
 
 import javax.annotation.Nullable;
 import javax.annotation.ParametersAreNonnullByDefault;
-import java.util.HashMap;
+import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Stream;
 
 @MethodsReturnNonnullByDefault
 @ParametersAreNonnullByDefault
@@ -43,14 +51,8 @@ public class ExportEMI {
     public static final AtomicBoolean isRecipeGatheringDone = new AtomicBoolean(false);
     public static final LinkedBlockingQueue<RecipeToExport> recipeExportQueue = new LinkedBlockingQueue<>();
 
-    public static final CompletableFuture<Void> recipesLoadedFuture = new CompletableFuture<>();
-    public static HashMap<ResourceLocation, JsonObject> loadedRecipes = null;
-
     public static CompletableFuture<Void> waitReady() {
-        return recipesLoadedFuture.thenComposeAsync(
-            (_void) -> ExecutionUtils.wait(EmiReloadManager::isLoaded),
-            ExecutionUtils.executor()
-        );
+        return ExecutionUtils.wait(EmiReloadManager::isLoaded);
     }
 
     public static CompletableFuture<Void> export() {
@@ -62,9 +64,9 @@ public class ExportEMI {
 
     private static CompletableFuture<Void> exportRecipes() {
         return ExecutionUtils.submit(() -> {
-            var manager = EmiApi.getRecipeManager();
-            return manager.getCategories().stream().map(ExportEMI::exportRecipeCategory).toArray(CompletableFuture[]::new);
-        })
+                var manager = EmiApi.getRecipeManager();
+                return manager.getCategories().stream().map(ExportEMI::exportRecipeCategory).toArray(CompletableFuture[]::new);
+            })
             .thenCompose(CompletableFuture::allOf)
             .thenCompose((_void) -> {
                 isRecipeGatheringDone.set(true);
@@ -72,43 +74,62 @@ public class ExportEMI {
             });
     }
 
+    private static ResourceLocation getEmiRecipeId(EmiRecipeCategory category, int index, EmiRecipe emiRecipe) {
+        var id = emiRecipe.getId();
+        if (id == null) {
+            var recipe = emiRecipe.getBackingRecipe();
+            if (recipe != null) {
+                id = recipe.getId();
+            }
+        }
+        if (id == null) {
+            id = ResourceLocation.parse(category.id.getNamespace() + ":/" + category.id.getPath() + "missingid-" + index);
+        }
+        return id;
+    }
+
+    private static @Nullable Recipe<?> getEmiBackingRecipe(EmiRecipe emiRecipe) {
+        var recipe = emiRecipe.getBackingRecipe();
+        var level = Minecraft.getInstance().level;
+        if (recipe == null && level != null && emiRecipe.getId() != null) {
+            recipe = level.getRecipeManager().byKey(emiRecipe.getId()).orElse(null);
+        }
+        return recipe;
+    }
+
     private static CompletableFuture<Void> exportRecipeCategory(EmiRecipeCategory category) {
         var manager = EmiApi.getRecipeManager();
         return ExecutionUtils.submit(() -> {
             var recipes = new JsonObject();
             // var recipeCategoryPath = FileUtils.resourceLocationToPath(category.getId());
-            for (var recipe : manager.getRecipes(category)) {
+            var categoryRecipes = manager.getRecipes(category);
+            for (var i = 0; i < categoryRecipes.size(); i++) {
+                var emiRecipe = categoryRecipes.get(i);
+                var id = getEmiRecipeId(category, i, emiRecipe);
+
                 var result = new JsonObject();
-                var id = recipe.getId();
-                if (id == null) continue;
+
+                var recipe = getEmiBackingRecipe(emiRecipe);
+                if (recipe != null) {
+                    result.addProperty("type", recipe.getType().toString());
+                }
 
                 result.addProperty("id", id.toString());
 
+                var widget = new WidgetGroup(null, 0, 0, emiRecipe.getDisplayWidth(), emiRecipe.getDisplayHeight());
+                emiRecipe.addWidgets(widget);
+
+                result.add("emi", encodeEmiRecipe(emiRecipe, widget));
+
                 var recipeIdPath = FileUtils.resourceLocationToPath(id);
                 var recipePath = "recipe-images/" + recipeIdPath + ".png";
-                recipeExportQueue.put(new RecipeToExport(recipePath, recipe));
+                recipeExportQueue.put(new RecipeToExport(recipePath, emiRecipe, widget));
                 result.addProperty("image", recipePath);
 
-                var raw = loadedRecipes.get(recipe.getId());
+                var raw = encodeRecipe(emiRecipe);
                 if (raw != null) {
                     result.add("raw", raw);
                 }
-
-                if (recipe.getBackingRecipe() != null) {
-                    result.addProperty("type", recipe.getBackingRecipe().getType().toString());
-                }
-
-                var inputs = new JsonArray();
-                recipe.getInputs().forEach(value -> inputs.add(emiIngredientToJson(value)));
-                result.add("inputs", inputs);
-
-                var catalysts = new JsonArray();
-                recipe.getCatalysts().forEach(value -> catalysts.add(emiIngredientToJson(value)));
-                result.add("catalysts", catalysts);
-
-                var outputs = new JsonArray();
-                recipe.getOutputs().forEach(value -> outputs.add(emiIngredientToJson(value)));
-                result.add("outputs", outputs);
 
                 recipes.add(id.toString(), result);
             }
@@ -118,6 +139,77 @@ public class ExportEMI {
             StarTExporter.LOG.info("Collected {} recipes for {}", recipes.size(), category.getId());
             return null;
         });
+    }
+
+    private static JsonElement encodeEmiRecipe(EmiRecipe emiRecipe, WidgetGroup widget) {
+        var result = new JsonObject();
+
+        result.addProperty("width", (widget.width + ExportRecipeImages.RECIPE_BORDER) * ExportRecipeImages.RECIPE_SCALE);
+        result.addProperty("height", (widget.height + ExportRecipeImages.RECIPE_BORDER) * ExportRecipeImages.RECIPE_SCALE);
+
+        result.add("slots", widget.widgets.stream()
+            .filter(SlotWidget.class::isInstance)
+            .map(SlotWidget.class::cast)
+            .map(w -> {
+                var bounds = w.getBounds();
+                var slot = new JsonObject();
+                slot.addProperty("x", (bounds.x() + ExportRecipeImages.RECIPE_BORDER) * ExportRecipeImages.RECIPE_SCALE);
+                slot.addProperty("y", (bounds.y() + ExportRecipeImages.RECIPE_BORDER) * ExportRecipeImages.RECIPE_SCALE);
+                slot.addProperty("width", bounds.width() * ExportRecipeImages.RECIPE_SCALE);
+                slot.addProperty("height", bounds.height() * ExportRecipeImages.RECIPE_SCALE);
+                slot.add("ingredient", emiIngredientToJson(w.getStack()));
+                return slot;
+            }).collect(JsonUtils.collectArray));
+
+        result.add("inputs", emiRecipe.getInputs().stream()
+            .map(ExportEMI::emiIngredientToJson)
+            .collect(JsonUtils.collectArray));
+
+        result.add("catalysts", emiRecipe.getCatalysts().stream()
+            .map(ExportEMI::emiIngredientToJson)
+            .collect(JsonUtils.collectArray));
+
+        result.add("outputs", emiRecipe.getOutputs().stream()
+            .map(ExportEMI::emiIngredientToJson)
+            .collect(JsonUtils.collectArray));
+
+        return result;
+    }
+
+    private static final List<IRecipeSerializer> recipeSerializers = Stream.<IRecipeSerializer>of(
+        ModList.get().isLoaded("gtceu") ? RecipeSerializerGregtech.INSTANCE : null,
+        ModList.get().isLoaded("ae2") ? RecipeSerializerAEEntropy.INSTANCE : null,
+        ModList.get().isLoaded("ae2") ? RecipeSerializerAETransform.INSTANCE : null,
+        ModList.get().isLoaded("create") ? RecipeSerializerCreateProcessing.INSTANCE : null,
+        ModList.get().isLoaded("create") ? RecipeSerializerCreateSquencedAssembly.INSTANCE : null,
+        ModList.get().isLoaded("farmersdelight") ? RecipeSerializerFDCuttingBoard.INSTANCE : null,
+        ModList.get().isLoaded("farmersdelight") ? RecipeSerializerFDCookingPot.INSTANCE : null,
+        ModList.get().isLoaded("framedblocks") ? RecipeSerializerFramingSaw.INSTANCE : null,
+        RecipeSerializerCooking.INSTANCE,
+        RecipeSerializerSmithingTransform.INSTANCE,
+        RecipeSerializerSmithingTrim.INSTANCE,
+        RecipeSerializerGenericShaped.INSTANCE,
+        RecipeSerializerGenericShapeless.INSTANCE,
+        RecipeSerializerGenericSingleItem.INSTANCE
+    ).filter(Objects::nonNull).toList();
+
+    @Nullable
+    private static JsonElement encodeRecipe(EmiRecipe emiRecipe) {
+        var recipe = getEmiBackingRecipe(emiRecipe);
+        if (recipe == null) {
+            return null;
+        }
+
+        for (var serializer : recipeSerializers) {
+            var result = serializer.serialize(recipe);
+            if (result != null) {
+                return result;
+            }
+        }
+
+        StarTExporter.LOG.info("Failed to serialize recipe {} (emi: {}, recipe: {})", emiRecipe.getId(), emiRecipe, recipe);
+
+        return null;
     }
 
     public static boolean isRecipeGatheringDone() {
@@ -198,7 +290,7 @@ public class ExportEMI {
             return null;
         }).thenCompose((_void) -> {
             isIndexingDone.set(true);
-            return ExecutionUtils.wait(ExportEMI::isItemExportingDone);
+            return ExecutionUtils.wait(() -> isItemExportingDone() && isFluidExportingDone());
         });
     }
 
@@ -207,7 +299,11 @@ public class ExportEMI {
     }
 
     public static boolean isItemExportingDone() {
-        return isIndexingDone() && itemsExportQueue.isEmpty() && fluidsExportQueue.isEmpty();
+        return isIndexingDone() && itemsExportQueue.isEmpty();
+    }
+
+    public static boolean isFluidExportingDone() {
+        return isIndexingDone() && fluidsExportQueue.isEmpty();
     }
 
     @SuppressWarnings("UnstableApiUsage")
@@ -273,6 +369,6 @@ public class ExportEMI {
     public record FluidToExport(String path, FluidStack stack, @Nullable ExportItemImages.AnimationData animationData) {
     }
 
-    public record RecipeToExport(String path, EmiRecipe recipe) {
+    public record RecipeToExport(String path, EmiRecipe recipe, WidgetGroup emiWidgetGroup) {
     }
 }

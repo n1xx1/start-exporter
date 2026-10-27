@@ -8,7 +8,6 @@ version = '0.1.0'
 base { archivesName = 'start-exporter' }
 java.toolchain.languageVersion = JavaLanguageVersion.of(21)
 
-// Keep LWJGL Java bindings and native libraries aligned for Java 21 debugging.
 configurations.configureEach {
     resolutionStrategy.eachDependency {
         if (requested.group == 'org.lwjgl') {
@@ -24,16 +23,19 @@ legacyForge {
     runs {
         client {
             client()
-            programArguments.addAll('--mixin.config', 'startexporter.mixins.json')
             jvmArgument '-XX:+AllowEnhancedClassRedefinition'
-            // systemProperty 'startexport.enabled', 'true'
             systemProperty 'startexport.quit', 'false'
+            systemProperty 'startexport.disableimagerendering', 'true'
         }
     }
     mods { startexporter { sourceSet sourceSets.main } }
 }
 
-// Enhanced HotSwap requires JetBrains Runtime; the Gradle daemon can use any supported JDK.
+mixin {
+    add sourceSets.main, 'startexporter.refmap.json'
+    config 'startexporter.mixins.json'
+}
+
 tasks.named('runClient') {
     javaLauncher = javaToolchains.launcherFor {
         languageVersion = JavaLanguageVersion.of(21)
@@ -45,17 +47,22 @@ repositories {
     maven { url = 'https://repo.sleeping.town/' }
     maven { url = 'https://maven.ftb.dev/releases/' }
     maven { url = 'https://maven.architectury.dev/' }
+    exclusiveContent {
+        forRepository { maven { url = 'https://maven.covers1624.net/' } }
+        filter { includeGroup 'com.teamcofh' }
+    }
     maven {
         url = 'https://maven.latvian.dev/releases/'
         content { includeGroup 'dev.latvian.mods' }
     }
-    maven {
-        url = 'https://cursemaven.com/'
-        content { includeGroup 'curse.maven' }
+    exclusiveContent {
+        forRepository { maven { url = 'https://cursemaven.com/' } }
+        filter { includeGroup 'curse.maven' }
     }
 }
 
 dependencies {
+    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
     modImplementation 'dev.emi:emi-forge:1.1.22+1.20.1'
     modImplementation 'dev.ftb.mods:ftb-teams-forge:2001.3.2'
     modImplementation 'dev.ftb.mods:ftb-quests-forge:2001.4.16'
@@ -63,7 +70,63 @@ dependencies {
     modImplementation 'dev.architectury:architectury-forge:9.2.14'
     modImplementation 'dev.latvian.mods:kubejs-forge:2001.6.5-build.16'
     modImplementation 'dev.latvian.mods:rhino-forge:2001.2.3-build.10'
-    modRuntimeOnly 'curse.maven:gregtech-modern-start-fork-1483344:8990245'
+
+    modImplementation 'curse.maven:gregtech-modern-start-fork-1483344:8990245' // done
+    modImplementation 'curse.maven:ae2-1624366:8945043'
+    modImplementation 'curse.maven:ae2wtlib-459929:7251206'
+    modImplementation 'curse.maven:extendedae-892005:8843577'
+    modImplementation 'curse.maven:create-328085:7178761' // done
+    modImplementation 'curse.maven:create-diesel-generators-869316:7932785'
+    modImplementation 'curse.maven:create-new-age-905861:6482827'
+    modImplementation 'curse.maven:vintage-1240780:8191742'
+    modImplementation 'com.teamcofh:thermal_core:1.20.1-11.0.6.24'
+    modImplementation 'curse.maven:thermal-foundation-222880:5443583'
+    modImplementation 'curse.maven:thermal-expansion-69163:5372749'
+    modImplementation 'curse.maven:thermal-cultivation-271835:5372746'
+    modImplementation 'curse.maven:thermal-extra-573674:7926122'
+    modImplementation 'curse.maven:thermal-systeams-693382:6790580'
+    modImplementation 'curse.maven:ex-nihilo-sequentia-400012:5635727'
+    modImplementation 'curse.maven:farmers-delight-398521:8765179'
+    modImplementation 'curse.maven:framedblocks-441647:7386520'
+    modImplementation 'curse.maven:chipped-456956:5813138'
+    modImplementation 'curse.maven:architects-palette-433862:5060610'
+    modImplementation 'curse.maven:stargate-journey-689083:7011774'
+    modImplementation 'curse.maven:functional-storage-556861:8412552'
+    modImplementation 'curse.maven:fantasy-furniture-579564:4702176'
+
+    modImplementation 'curse.maven:enderchests-363535:6910034'
+    modImplementation 'curse.maven:endertanks-59613:6910073'
+    modImplementation 'curse.maven:flux-networks-248020:5234697'
+    modImplementation 'curse.maven:jetboots-373208:5489081'
+    modImplementation 'curse.maven:laserio-1168178:8405834'
+    modImplementation 'curse.maven:modular-routers-250294:5056687'
+    modImplementation 'curse.maven:patchouli-306770:7731017'
+    modImplementation 'curse.maven:pipez-443900:6945379'
+    modImplementation 'curse.maven:simply-backpacks-311595:4631601'
+    modImplementation 'curse.maven:cb-multipart-258426:7845318'
+
+    modImplementation 'curse.maven:lowdraglib-626676:8830518'
+    modImplementation 'curse.maven:cofh-core-69162:5374122'
+    modImplementation 'curse.maven:titanium-287342:8426836'
+    modImplementation 'curse.maven:novacore-923669:4815411'
+    modImplementation 'curse.maven:resourcefullib-570073:5659871'
+    modImplementation 'curse.maven:bookshelf-228525:7612389'
+    modImplementation 'curse.maven:cucumber-272335:7180783'
+    modImplementation 'curse.maven:cyclops-core-232758:8813356'
+    modImplementation 'curse.maven:shetiphian-core-71738:6909982'
+    modImplementation 'curse.maven:puzzles-lib-495476:6918565'
+    modImplementation 'curse.maven:recipes-library-398351:4628674'
+    modImplementation 'curse.maven:bml-371791:4754782'
+    modImplementation 'curse.maven:bucketlib-560156:7930882'
+    modImplementation 'curse.maven:codechickenlib-242818:8491810'
+
+    // Runtime dependencies of the recipe mods above (not supplied transitively by CurseMaven).
+    modRuntimeOnly 'curse.maven:guideme-1173950:8204776'
+    modRuntimeOnly 'curse.maven:curios-309927:6418456'
+    modRuntimeOnly 'curse.maven:glodium-957920:5226922'
+    modRuntimeOnly 'curse.maven:athena-841890:5176879'
+    modRuntimeOnly 'curse.maven:cloth-config-348521:5729105'
+    modRuntimeOnly 'curse.maven:botarium-704113:5486070'
 }
 
 tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }
