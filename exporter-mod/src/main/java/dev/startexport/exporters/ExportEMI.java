@@ -100,7 +100,7 @@ public class ExportEMI {
     private static CompletableFuture<Void> exportRecipeCategory(EmiRecipeCategory category) {
         var manager = EmiApi.getRecipeManager();
         return ExecutionUtils.submit(() -> {
-            var recipes = new JsonObject();
+            var recipes = new JsonArray();
             // var recipeCategoryPath = FileUtils.resourceLocationToPath(category.getId());
             var categoryRecipes = manager.getRecipes(category);
             for (var i = 0; i < categoryRecipes.size(); i++) {
@@ -131,7 +131,7 @@ public class ExportEMI {
                     result.add("raw", raw);
                 }
 
-                recipes.add(id.toString(), result);
+                recipes.add(result);
             }
 
             var exportPath = FileUtils.resourceLocationToPath(category.getId());
@@ -227,14 +227,13 @@ public class ExportEMI {
 
     private static CompletableFuture<Void> exportIndex() {
         return ExecutionUtils.submit(() -> {
-            var items = new JsonObject();
+            var items = new JsonArray();
 
             var count = 0;
             for (var stack : EmiApi.getIndexStacks()) {
                 if (shouldSkipStack(stack)) continue;
 
                 var entry = emiStackToJson(stack, 0).getAsJsonObject();
-                var id = stack.getId().toString();
                 entry.add("name", JsonUtils.fromComponent(stack.getName()));
 
                 var isFluid = stack.getKey() instanceof Fluid;
@@ -275,7 +274,7 @@ public class ExportEMI {
                     itemsExportQueue.put(new ItemToExport(imagePath, itemStack, animationData));
                 }
 
-                items.add(id, entry);
+                items.add(entry);
                 count++;
 
                 if (count % 500 == 0) {
@@ -343,7 +342,7 @@ public class ExportEMI {
         var result = new JsonObject();
         result.addProperty("id", stack.getId().toString());
 
-        if (stack.getAmount() != 1) {
+        if (stack.getAmount() > 1) {
             result.addProperty("amount", stack.getAmount());
         }
         if (stack.getChance() != 1) {
