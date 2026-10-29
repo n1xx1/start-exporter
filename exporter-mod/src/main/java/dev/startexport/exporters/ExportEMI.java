@@ -250,7 +250,12 @@ public class ExportEMI {
 
                     var animationData = ExportItemImages.getAnimationDataForFluid(fluidStack);
                     if (animationData != null) {
-                        entry.addProperty("animationFrames", animationData.frames.size());
+                        entry.add("animationData", animationData.data.stream().map(pair-> {
+                            var result = new JsonArray(2);
+                            result.add(pair.firstInt());
+                            result.add(pair.secondInt());
+                            return result;
+                        }).collect(JsonUtils.collectArray));
                         entry.addProperty("animationInterpolated", animationData.interpolated);
                     }
 
@@ -267,7 +272,13 @@ public class ExportEMI {
 
                     var animationData = ExportItemImages.getAnimationDataForItem(itemStack);
                     if (animationData != null) {
-                        entry.addProperty("animationFrames", animationData.frames.size());
+                        entry.add("animationData", animationData.data.stream().map(pair-> {
+                            var result = new JsonArray(2);
+                            result.add(pair.firstInt());
+                            result.add(pair.secondInt());
+                            return result;
+                        }).collect(JsonUtils.collectArray));
+                        entry.addProperty("animationInterpolated", animationData.interpolated);
                     }
 
                     var imagePath = "items/" + imageBasePath;
