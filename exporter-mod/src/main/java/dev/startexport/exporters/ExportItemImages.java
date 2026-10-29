@@ -294,6 +294,7 @@ public final class ExportItemImages {
         public final SpriteContents.AnimatedTexture animatedTexture;
         public List<IntIntPair> data;
         public IntList frames;
+        public boolean interpolated;
 
         public static @Nullable AnimationData get(TextureAtlasSprite sprite) {
             @SuppressWarnings("resource") var contents = sprite.contents();
@@ -309,6 +310,7 @@ public final class ExportItemImages {
             this.animatedTexture = animatedTexture;
             atlas = Minecraft.getInstance().getModelManager().getAtlas(sprite.atlasLocation());
             data = animatedTexture.frames.stream().map(frame -> IntIntPair.of(frame.index, frame.time)).toList();
+            interpolated = animatedTexture.interpolateFrames;
             @SuppressWarnings("resource") var contents = sprite.contents();
             frames = IntArrayList.wrap(contents.getUniqueFrames().toArray());
         }

@@ -251,6 +251,7 @@ public class ExportEMI {
                     var animationData = ExportItemImages.getAnimationDataForFluid(fluidStack);
                     if (animationData != null) {
                         entry.addProperty("animationFrames", animationData.frames.size());
+                        entry.addProperty("animationInterpolated", animationData.interpolated);
                     }
 
                     var imagePath = "fluids/" + imageBasePath;
