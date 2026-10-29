@@ -292,9 +292,9 @@ public final class ExportItemImages {
         public final TextureAtlas atlas;
         public final TextureAtlasSprite sprite;
         public final SpriteContents.AnimatedTexture animatedTexture;
-        public List<IntIntPair> data;
-        public IntList frames;
-        public boolean interpolated;
+        public final List<IntIntPair> data;
+        public final IntList frames;
+        public final boolean interpolated;
 
         public static @Nullable AnimationData get(TextureAtlasSprite sprite) {
             @SuppressWarnings("resource") var contents = sprite.contents();

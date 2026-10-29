@@ -239,7 +239,7 @@ public class ExportEMI {
                 var isFluid = stack.getKey() instanceof Fluid;
                 entry.addProperty("fluid", isFluid);
 
-                var suffix = stack.hasNbt() ? "_" + JsonUtils.hashNbt(stack.getNbt()) : "";
+                var suffix = stack.hasNbt() ? "_" + entry.get("nbtHash").getAsString() : "";
                 var imageBasePath = FileUtils.resourceLocationToPath(stack.getId()) + suffix + ".png";
 
                 if (isFluid) {
@@ -362,6 +362,7 @@ public class ExportEMI {
         }
         if (stack.hasNbt()) {
             result.add("nbt", JsonUtils.fromNbt(stack.getNbt()));
+            result.addProperty("nbtHash", JsonUtils.hashNbt(stack.getNbt()));
         }
         var remainder = stack.getRemainder();
         if (remainder != null && !remainder.isEmpty()) {
